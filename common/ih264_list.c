@@ -391,6 +391,11 @@ IH264_ERROR_T ih264_list_terminate(list_t *ps_list)
     return ret;
 }
 
+WORD32 ih264_get_job_count_in_list(list_t *ps_list)
+{
+    return ps_list->i4_buf_wr_idx - ps_list->i4_buf_rd_idx;
+}
+
 
 /**
 *******************************************************************************

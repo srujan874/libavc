@@ -2198,9 +2198,9 @@ struct _codec_t
     WORD32 i4_pic_cnt;
 
     /**
-     * Number of threads created
+     * Number of worker threads created
      */
-    WORD32 i4_proc_thread_cnt;
+    WORD32 i4_worker_thread_cnt;
 
     /**
      * Mutex used to keep the control calls thread-safe
@@ -2329,6 +2329,9 @@ struct _codec_t
      * This will be used to return the mem records during retrieve call
      */
     iv_mem_rec_t *ps_mem_rec_backup;
+
+    void *pv_frm_mutex;  // mutex to wait on till new jobs arrive
+    void *pv_frm_condition;
 
     /**
      * Flag to determine if the entropy thread is active
@@ -2509,7 +2512,8 @@ struct _codec_t
     /**
      * Thread created flag for each of the processing threads
      */
-    WORD32 ai4_process_thread_created[MAX_PROCESS_THREADS];
+    WORD32 ai4_worker_thread_created[MAX_NUM_CORES];
+    WORD32 ai4_worker_thread_done[MAX_NUM_CORES];
 
     /**
      * Void pointer to process job context

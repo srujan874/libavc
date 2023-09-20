@@ -413,6 +413,11 @@ enum
     MEM_REC_AIR_MAP,
 
     /**
+     * Holds resources for threads to wait between frames
+     */
+    MEM_REC_THREAD_WAIT_MUTEX,
+
+    /**
      * Contains status map indicating ME status per MB basis
      */
     MEM_REC_ME_MAP,

@@ -2198,6 +2198,9 @@ IH264E_ERROR_T ih264e_pic_init(codec_t *ps_codec, inp_buf_t *ps_inp_buf)
         ih264_list_terminate(ps_codec->pv_proc_jobq);
     }
 
+    if (ps_codec->s_cfg.u4_num_cores != 1)
+        ithread_condition_broadcast(ps_codec->pv_frm_condition);
+
     return error_status;
 }
 

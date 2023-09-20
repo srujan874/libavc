@@ -329,6 +329,8 @@ WORD32 ih264e_update_rc_post_enc(codec_t *ps_codec, WORD32 ctxt_sel, WORD32 pic_
 *
 *******************************************************************************
 */
-WORD32 ih264e_process_thread(void *pv_proc);
+WORD32 ih264e_worker_thread(void *pv_proc);
+
+void ih264e_worker_thread_wrapper(void *pv_proc);
 
 #endif /* IH264E_PROCESS_H_ */

@@ -3042,7 +3042,7 @@ static WORD32 ih264e_init(codec_t *ps_codec)
     ps_codec->i4_pic_cnt = -1;
 
     /* Number of threads created */
-    ps_codec->i4_proc_thread_cnt = 0;
+    ps_codec->i4_worker_thread_cnt = 0;
 
     /* ctl mutex init */
     ithread_mutex_init(ps_codec->pv_ctl_mutex);
@@ -3094,14 +3094,17 @@ static WORD32 ih264e_init(codec_t *ps_codec)
     /* entropy mutex init */
     ithread_mutex_init(ps_codec->pv_entropy_mutex);
 
+    ithread_mutex_init(ps_codec->pv_frm_mutex);
+    ithread_condition_init(ps_codec->pv_frm_condition);
+
     /* sps id */
     ps_codec->i4_sps_id = 0;
 
     /* sps id */
     ps_codec->i4_pps_id = 0;
 
-    /* Process thread created status */
-    memset(ps_codec->ai4_process_thread_created, 0, MAX_PROCESS_THREADS);
+    /* Worker thread created status */
+    memset(ps_codec->ai4_worker_thread_created, 0, MAX_PROCESS_THREADS);
 
     memset(&ps_codec->s_global_quality_stats, 0, sizeof(ps_codec->s_global_quality_stats));
 
@@ -3692,6 +3695,14 @@ static WORD32 ih264e_fill_num_mem_rec(void *pv_api_ip, void *pv_api_op)
         ps_mem_rec->u4_mem_size = ithread_get_mutex_lock_size();
     }
     DEBUG("\nMemory record Id %d = %d \n", MEM_REC_ENTROPY_MUTEX, ps_mem_rec->u4_mem_size);
+
+    ps_mem_rec = &ps_mem_rec_base[MEM_REC_THREAD_WAIT_MUTEX];
+    {
+        ps_mem_rec->u4_mem_size = ithread_get_mutex_lock_size();
+        ps_mem_rec->u4_mem_size += ithread_get_conditional_size();
+    }
+    DEBUG("\nMemory record Id %d = %d \n", MEM_REC_THREAD_WAIT_MUTEX, ps_mem_rec->u4_mem_size);
+
 
     /************************************************************************
      * Request memory to hold process jobs                                  *
@@ -4603,6 +4614,12 @@ static WORD32 ih264e_init_mem_rec(iv_obj_t *ps_codec_obj,
         ps_codec->pv_entropy_mutex = ps_mem_rec->pv_base;
     }
 
+    ps_mem_rec = &ps_mem_rec_base[MEM_REC_THREAD_WAIT_MUTEX];
+    {
+        ps_codec->pv_frm_mutex = ps_mem_rec->pv_base;
+        ps_codec->pv_frm_condition = (UWORD8 *)ps_mem_rec->pv_base + ithread_get_mutex_lock_size();
+    }
+
     ps_mem_rec = &ps_mem_rec_base[MEM_REC_PROC_JOBQ];
     {
         ps_codec->pv_proc_jobq_buf = ps_mem_rec->pv_base;
@@ -5118,6 +5135,9 @@ static WORD32 ih264e_retrieve_memrec(iv_obj_t *ps_codec_obj,
     ih264_list_free(ps_codec->pv_proc_jobq);
     ithread_mutex_destroy(ps_codec->pv_ctl_mutex);
     ithread_mutex_destroy(ps_codec->pv_entropy_mutex);
+    ithread_mutex_destroy(ps_codec->pv_frm_mutex);
+    ithread_condition_destroy(ps_codec->pv_frm_condition);
+
 
 
     ih264_buf_mgr_free((buf_mgr_t *)ps_codec->pv_mv_buf_mgr);

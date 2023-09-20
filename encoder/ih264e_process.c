@@ -2498,6 +2498,30 @@ WORD32 ih264e_update_rc_post_enc(codec_t *ps_codec, WORD32 ctxt_sel, WORD32 i4_i
     return ps_entropy->i4_error_code;
 }
 
+void ih264e_worker_thread_wrapper(void *pv_proc)
+{
+    process_ctxt_t *ps_proc = pv_proc;
+    codec_t *ps_codec = ps_proc->ps_codec;
+
+    while (1)
+    {
+        ithread_mutex_lock(ps_codec->pv_frm_mutex);
+        while (1)
+        {
+            if (ps_codec->i4_last_inp_buff_received ||
+                ih264_get_job_count_in_list(ps_codec->pv_proc_jobq) > 0)
+                break;
+            ithread_condition_wait(ps_codec->pv_frm_condition, ps_codec->pv_frm_mutex);
+        }
+        ithread_mutex_unlock(ps_codec->pv_frm_mutex);
+        if (ps_codec->i4_last_inp_buff_received) return;
+        ih264e_worker_thread(pv_proc);
+        ps_codec->ai4_worker_thread_done[ps_proc->i4_id] = 1;
+        if (ps_proc->i4_error_code != 0) return;
+    }
+}
+
+
 /**
 *******************************************************************************
 *
@@ -2517,7 +2541,7 @@ WORD32 ih264e_update_rc_post_enc(codec_t *ps_codec, WORD32 ctxt_sel, WORD32 i4_i
 *
 *******************************************************************************
 */
-WORD32 ih264e_process_thread(void *pv_proc)
+WORD32 ih264e_worker_thread(void *pv_proc)
 {
     /* error status */
     IH264_ERROR_T ret = IH264_SUCCESS;

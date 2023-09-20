@@ -127,22 +127,23 @@ void ih264e_join_threads(codec_t *ps_codec)
    WORD32 ret = 0;
 
    /* join spawned threads */
-   while (i < ps_codec->i4_proc_thread_cnt)
+   while (i < ps_codec->i4_worker_thread_cnt)
    {
-       if (ps_codec->ai4_process_thread_created[i])
+       if (ps_codec->ai4_worker_thread_created[i])
        {
+           ithread_condition_broadcast(ps_codec->pv_frm_condition);
            ret = ithread_join(ps_codec->apv_proc_thread_handle[i], NULL);
            if (ret != 0)
            {
                printf("pthread Join Failed");
                assert(0);
            }
-           ps_codec->ai4_process_thread_created[i] = 0;
+           ps_codec->ai4_worker_thread_created[i] = 0;
            i++;
        }
    }
 
-   ps_codec->i4_proc_thread_cnt = 0;
+   ps_codec->i4_worker_thread_cnt = 0;
 }
 
 /**
@@ -177,6 +178,23 @@ IH264E_ERROR_T ih264e_wait_for_thread(UWORD32 sleep_us)
 
     return IH264E_SUCCESS;
 }
+
+void ih264e_sync_threads(codec_t *ps_codec)
+{
+    WORD32 i;
+
+    // wait until all threads have finished processing
+    for (i = 1; i <= ps_codec->i4_worker_thread_cnt; i++)
+    {
+        if (ps_codec->ai4_worker_thread_created[i])
+        {
+            while (!ps_codec->ai4_worker_thread_done[i])
+                ithread_yield();
+            ps_codec->ai4_worker_thread_done[i] = 0;  // reset fields for next
+        }
+    }
+}
+
 
 /**
 ******************************************************************************
@@ -285,6 +303,21 @@ WORD32 ih264e_encode(iv_obj_t *ps_codec_obj, void *pv_api_ip, void *pv_api_op)
     if (ps_codec->i4_encode_api_call_cnt == 0)
     {
         ih264e_codec_init(ps_codec);
+        for (i = 1; i < (WORD32)ps_codec->s_cfg.u4_num_cores; i++)
+        {
+            process_ctxt_t *ps_proc_th = &ps_codec->as_process[i];
+
+            assert(i == ps_proc_th->i4_id);
+            if (ithread_create(ps_codec->apv_proc_thread_handle[i], NULL,
+                    (void *)ih264e_worker_thread_wrapper, ps_proc_th))
+            {
+                ih264e_join_threads(ps_codec);
+                break;
+            }
+            ps_codec->ai4_worker_thread_created[i] = 1;
+            ps_codec->i4_worker_thread_cnt++;
+        }
+
     }
 
     /* parse configuration params */
@@ -558,29 +591,9 @@ WORD32 ih264e_encode(iv_obj_t *ps_codec_obj, void *pv_api_ip, void *pv_api_op)
                             ps_video_encode_op->s_ive_op.u4_error_code,
                             IV_FAIL);
 
-        for (i = 0; i < num_thread_cnt; i++)
-        {
-            ret = ithread_create(ps_codec->apv_proc_thread_handle[i],
-                                 NULL,
-                                 (void *)ih264e_process_thread,
-                                 &ps_codec->as_process[i + 1]);
-            if (ret != 0)
-            {
-                printf("pthread Create Failed");
-                assert(0);
-            }
+        ih264e_worker_thread(ps_proc);
 
-            ps_codec->ai4_process_thread_created[i] = 1;
-
-            ps_codec->i4_proc_thread_cnt++;
-        }
-
-
-        /* launch job */
-        ih264e_process_thread(ps_proc);
-
-        /* Join threads at the end of encoding a frame */
-        ih264e_join_threads(ps_codec);
+        ih264e_sync_threads(ps_codec);
 
         ih264_list_reset(ps_codec->pv_proc_jobq);
 

@@ -234,3 +234,8 @@ WORD32 ithread_cond_signal(void *cond)
 {
     return pthread_cond_signal((pthread_cond_t *)cond);
 }
+
+WORD32 ithread_condition_broadcast(void *condition)
+{
+    return pthread_cond_broadcast((pthread_cond_t *)condition);
+}

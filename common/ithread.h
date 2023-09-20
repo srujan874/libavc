@@ -108,4 +108,6 @@ WORD32  ithread_cond_wait(void *cond, void *mutex);
 
 WORD32  ithread_cond_signal(void *cond);
 
+WORD32 ithread_condition_broadcast(void *condition);
+
 #endif /* _ITHREAD_H_ */
